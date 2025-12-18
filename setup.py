@@ -11,12 +11,12 @@ class get_pybind_include(object):
 
 ext_modules = [
     Extension(
-        'tgalign._tgalign_cpp', # The internal name of the compiled module
+        'tgalign._tgalign_cpp', 
         ['tgalign/src/dna_sketch.cpp'],
         include_dirs=[
-            # Path to pybind11 headers
-            get_pybind_include(),
-            get_pybind_include() + '/user'
+            # Call str() explicitly to trigger the __str__ method
+            str(get_pybind_include()), 
+            str(get_pybind_include()) + '/user' 
         ],
         language='c++'
     ),
