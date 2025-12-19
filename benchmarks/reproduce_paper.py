@@ -406,13 +406,19 @@ def main():
             # TGAlign is always parameter-free (auto-tiling)
             tg_wrapper = TGAlignWrapper()
             
-            # USEARCH needs Expert Mode for fragments
-            usearch_wrapper = UsearchWrapper(
-                case.usearch_id, 
-                expert_mode=is_fragment_test
-            )
-
-            comps = [tg_wrapper, usearch_wrapper]
+            if is_fragment_test:
+                # For Fragments, we compare against BOTH Expert and Standard
+                comps = [
+                    tg_wrapper,
+                    UsearchWrapper(case.usearch_id, expert_mode=True),  # The "Expert"
+                    UsearchWrapper(case.usearch_id, expert_mode=False)  # The "Naive"
+                ]
+            else:
+                # For standard datasets, we just use standard global alignment
+                comps = [
+                    tg_wrapper,
+                    UsearchWrapper(case.usearch_id, expert_mode=False)
+                ]
 
             # Run Benchmarks
             for model in comps:
