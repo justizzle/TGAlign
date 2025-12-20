@@ -80,26 +80,39 @@ def get_coi_data():
         subprocess.run(f"wget -q '{url}' -O {path}", shell=True)
     
     # Read FASTA
-    seqs, labels = [], []
+    raw_seqs, raw_labels = [], []
     with open(path, 'r') as f:
         header = None
         seq = []
         for line in f:
             line = line.strip()
             if line.startswith(">"):
-                if header and "Unknown" not in header: # Basic check
-                    # Parse Taxonomy (Simplistic)
+                if header and "Unknown" not in header:
                     parts = header.split()
                     if len(parts) > 2:
-                        genus = parts[0]
-                        species = f"{parts[0]} {parts[1]}"
-                        seqs.append("".join(seq))
-                        labels.append(species)
+                        # Extract Species Label
+                        label = f"{parts[0]} {parts[1]}"
+                        raw_seqs.append("".join(seq))
+                        raw_labels.append(label)
                 header = line[1:]
                 seq = []
             else:
                 seq.append(line.upper())
-    return np.array(seqs), np.array(labels)
+        # Last seq
+        if header:
+             parts = header.split()
+             if len(parts) > 2:
+                 raw_seqs.append("".join(seq))
+                 raw_labels.append(f"{parts[0]} {parts[1]}")
+
+    # FILTER RARE CLASSES (StratifiedKFold Requirement)
+    from collections import Counter
+    counts = Counter(raw_labels)
+    valid_indices = [i for i, l in enumerate(raw_labels) if counts[l] >= 5]
+    
+    print(f"Filtered {len(raw_labels) - len(valid_indices)} rare sequences (<5 per species).")
+    
+    return np.array(raw_seqs)[valid_indices], np.array(raw_labels)[valid_indices]
 
 # =============================================================================
 # RUN ABLATION BENCHMARK
