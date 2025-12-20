@@ -64,9 +64,22 @@ class NaiveTGAlignIndex(TGAlignIndex):
         self.index.add(sketches)
 
 # =============================================================================
-# DATA PREP (Simplified Copy)
+# DATA PREP
 # =============================================================================
-# Reuse the exact same dataset logic as the main paper to ensure consistency.
+
+def parse_ncbi_taxonomy(header: str) -> str:
+    """Strict Species-Level Parser (Same as Main Benchmark)"""
+    parts = header.split()
+    for i, part in enumerate(parts):
+        # Look for 'Genus species' pattern
+        if i + 1 < len(parts) and part[0].isupper() and len(part) > 2 and parts[i+1][0].islower():
+            genus = part
+            species = f"{part} {parts[i+1]}"
+            # Optional: Add subspecies if present
+            if i + 2 < len(parts) and parts[i+2][0].islower():
+                species += f" {parts[i+2]}"
+            return species
+    return "Unknown"
 
 def get_coi_data():
     """Downloads and prepares the COI dataset from Zenodo."""
@@ -79,7 +92,7 @@ def get_coi_data():
         import subprocess
         subprocess.run(f"wget -q '{url}' -O {path}", shell=True)
     
-    # Read FASTA & Parse Taxonomy
+    # Read FASTA
     raw_seqs, raw_labels = [], []
     with open(path, 'r') as f:
         header = None
@@ -88,52 +101,29 @@ def get_coi_data():
             line = line.strip()
             if line.startswith(">"):
                 if header and "Unknown" not in header:
-                    # --- ROBUST PARSING LOGIC ---
-                    # Look for "Genus species" pattern in the header
-                    parts = header.split()
-                    label = None
-                    for i, part in enumerate(parts):
-                        # Skip ID (index 0)
-                        if i == 0: continue 
-                        # Pattern: Capitalized Word + Lowercase Word (e.g. Panthera leo)
-                        if (i + 1 < len(parts) and 
-                            part[0].isupper() and 
-                            len(part) > 2 and 
-                            parts[i+1][0].islower()):
-                            label = f"{part} {parts[i+1]}"
-                            break
-                    
-                    if label:
+                    # USE STRICT PARSER
+                    label = parse_ncbi_taxonomy(header)
+                    if label != "Unknown":
                         raw_seqs.append("".join(seq))
                         raw_labels.append(label)
-                
                 header = line[1:]
                 seq = []
             else:
                 seq.append(line.upper())
-        # Last sequence
-        if header and "Unknown" not in header:
-             parts = header.split()
-             label = None
-             for i, part in enumerate(parts):
-                if i == 0: continue
-                if (i + 1 < len(parts) and part[0].isupper() and len(part) > 2 and parts[i+1][0].islower()):
-                    label = f"{part} {parts[i+1]}"
-                    break
-             if label:
+        # Last seq
+        if header:
+             label = parse_ncbi_taxonomy(header)
+             if label != "Unknown":
                  raw_seqs.append("".join(seq))
                  raw_labels.append(label)
 
-    # FILTER RARE CLASSES (StratifiedKFold Requirement)
+    # FILTER RARE CLASSES
     from collections import Counter
     counts = Counter(raw_labels)
-    # Ensure at least 5 examples per class
     valid_indices = [i for i, l in enumerate(raw_labels) if counts[l] >= 5]
     
     print(f"Original: {len(raw_labels)}. Filtered: {len(valid_indices)} sequences.")
-    
     return np.array(raw_seqs)[valid_indices], np.array(raw_labels)[valid_indices]
-    
 # =============================================================================
 # RUN ABLATION BENCHMARK
 # =============================================================================
